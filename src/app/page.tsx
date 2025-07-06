@@ -1,103 +1,143 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useState } from "react";
+import { useChat } from "@ai-sdk/react";
+import type { FormEvent } from "react";
+
+export default function Page() {
+  const [repoUrl, setRepoUrl] = useState<string>("");
+  const [analysis, setAnalysis] = useState<string>("");
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const {
+    messages,
+    input,
+    handleSubmit,
+    handleInputChange,
+    status,
+    setMessages,
+  } = useChat({
+    api: "/api/chat",
+    initialMessages: [],
+    body: {
+      // extra body will be merged per request; we send analysis each time
+    },
+  });
+
+  const analyzeRepo = async () => {
+    if (!repoUrl) return;
+    setIsAnalyzing(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: repoUrl }),
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(errText);
+      }
+      const json = await res.json();
+      setAnalysis(json.analysis);
+      // prime chat with system message containing wiki
+      setMessages([
+        {
+          id: "sys-1",
+          role: "system",
+          content: `You are an expert on the following GitHub repository. Use the analysis below and the file tree to answer questions.\n\nANALYSIS:\n${
+            json.analysis
+          }\n\nFILE_TREE:\n${json.fileTree.join("\n")}`,
+        },
+      ]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <div className="max-w-xl mx-auto p-8 space-y-6">
+      <h1 className="text-2xl font-bold mb-4">GitHub Repo Wiki Chat</h1>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+      <div className="space-y-2">
+        <input
+          type="text"
+          placeholder="https://github.com/owner/repo"
+          value={repoUrl}
+          onChange={(e) => setRepoUrl(e.target.value)}
+          className="w-full border rounded p-2"
+        />
+        <button
+          onClick={analyzeRepo}
+          disabled={isAnalyzing || !repoUrl}
+          className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+        >
+          {isAnalyzing ? "Analyzing..." : "Analyze"}
+        </button>
+        {error && <p className="text-red-600 text-sm">{error}</p>}
+      </div>
+
+      {analysis && (
+        <div className="prose max-w-none bg-gray-50 p-4 rounded border">
+          <h2>Repository Analysis</h2>
+          <div
+            dangerouslySetInnerHTML={{
+              __html: analysis.replace(/\n/g, "<br/>"),
+            }}
+          />
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      )}
+
+      {analysis && (
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold">
+            Chat with the Repository Wiki
+          </h2>
+          <div className="border rounded p-4 h-80 overflow-y-auto">
+            {messages.map((m) => (
+              <div key={m.id} className="mb-2">
+                <strong>{m.role}: </strong>
+                {m.parts ? (
+                  m.parts.map((part, idx) => {
+                    if (part.type === "text") {
+                      const textPart = part as { type: "text"; text: string };
+                      return <span key={idx}>{textPart.text}</span>;
+                    }
+                    return null;
+                  })
+                ) : (
+                  <span>{m.content as string}</span>
+                )}
+              </div>
+            ))}
+          </div>
+          <form
+            onSubmit={(e: FormEvent<HTMLFormElement>) => {
+              e.preventDefault();
+              handleSubmit(e);
+            }}
+            className="flex gap-2"
+          >
+            <input
+              value={input}
+              onChange={handleInputChange}
+              disabled={status !== "ready"}
+              className="flex-1 border rounded p-2"
+              placeholder="Ask something..."
+            />
+            <button
+              type="submit"
+              disabled={status !== "ready" || !input}
+              className="px-4 py-2 bg-green-600 text-white rounded disabled:opacity-50"
+            >
+              Send
+            </button>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
