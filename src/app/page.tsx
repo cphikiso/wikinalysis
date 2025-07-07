@@ -2,30 +2,15 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useChat } from "@ai-sdk/react";
-import type { FormEvent } from "react";
 import { marked } from "marked";
+import Chat from "@/chat";
 
 export default function Page() {
   const [repoUrl, setRepoUrl] = useState<string>("");
   const [analysis, setAnalysis] = useState<string>("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const {
-    messages,
-    input,
-    handleSubmit,
-    handleInputChange,
-    status,
-    setMessages,
-  } = useChat({
-    api: "/api/chat",
-    initialMessages: [],
-    body: {
-      // extra body will be merged per request; we send analysis each time
-    },
-  });
+  const [fileTree, setFileTree] = useState<string[]>([]);
 
   const analyzeRepo = async () => {
     if (!repoUrl) return;
@@ -43,16 +28,7 @@ export default function Page() {
       }
       const json = await res.json();
       setAnalysis(json.analysis);
-      // prime chat with system message containing wiki
-      setMessages([
-        {
-          id: "sys-1",
-          role: "system",
-          content: `You are an expert on the following GitHub repository. Use the analysis below and the file tree to answer questions.\n\nANALYSIS:\n${
-            json.analysis
-          }\n\nFILE_TREE:\n${json.fileTree.join("\n")}`,
-        },
-      ]);
+      setFileTree(json.fileTree as string[]);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -99,53 +75,7 @@ export default function Page() {
         </div>
       )}
 
-      {analysis && (
-        <div className="space-y-4">
-          <h2 className="text-xl font-semibold">
-            Chat with the Repository Wiki
-          </h2>
-          <div className="border rounded p-4 h-80 overflow-y-auto">
-            {messages.map((m) => (
-              <div key={m.id} className="mb-2">
-                <strong>{m.role}: </strong>
-                {m.parts ? (
-                  m.parts.map((part, idx) => {
-                    if (part.type === "text") {
-                      const textPart = part as { type: "text"; text: string };
-                      return <span key={idx}>{textPart.text}</span>;
-                    }
-                    return null;
-                  })
-                ) : (
-                  <span>{m.content as string}</span>
-                )}
-              </div>
-            ))}
-          </div>
-          <form
-            onSubmit={(e: FormEvent<HTMLFormElement>) => {
-              e.preventDefault();
-              handleSubmit(e);
-            }}
-            className="flex gap-2"
-          >
-            <input
-              value={input}
-              onChange={handleInputChange}
-              disabled={status !== "ready"}
-              className="flex-1 border rounded p-2"
-              placeholder="Ask something..."
-            />
-            <button
-              type="submit"
-              disabled={status !== "ready" || !input}
-              className="px-4 py-2 bg-green-600 text-white rounded disabled:opacity-50"
-            >
-              Send
-            </button>
-          </form>
-        </div>
-      )}
+      {analysis && <Chat analysis={analysis} fileTree={fileTree} />}
     </div>
   );
 }
