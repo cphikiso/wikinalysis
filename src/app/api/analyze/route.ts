@@ -102,10 +102,51 @@ async function openAIGenerate(markdownPrompt: string) {
         content: markdownPrompt,
       },
     ],
-    temperature: 0.2,
   });
 
   return completion.choices[0].message?.content ?? "";
+}
+
+function buildDetailedWikiPrompt(
+  owner: string,
+  repo: string,
+  fileTree: string,
+  readme: string
+) {
+  return `You are an expert technical writer and senior software architect.
+
+Your task is to generate a COMPREHENSIVE GitHub-styled wiki page in **Markdown** for the repository **${owner}/${repo}**.
+
+CRITICAL REQUIREMENTS:
+1. **Begin** with a <details> block that lists *relevant* source files, each as a Markdown list item linking directly to the file in GitHub. Use the format:
+   <details>
+   <summary>Relevant source files</summary>
+
+   - [path/to/file.ext](https://github.com/${owner}/${repo}/blob/main/path/to/file.ext)
+   </details>
+2. Immediately after the <details> block, include a **Table of Contents** that links to every top-level heading you will write.
+3. Provide the following sections (use exact titles so links work):
+   - Introduction
+   - Architecture Overview (include at least one **Mermaid** diagram, e.g. graph TD)
+   - Key Features
+   - Implementation Details
+   - Usage Examples
+   - API / Interfaces
+   - Configuration
+   - Dependencies
+   - Sources (cite files + line numbers, e.g. [src/index.ts#L10-L42](…))
+4. Where appropriate, embed additional Mermaid diagrams (sequence / class) and code snippets from the repository.
+5. Keep the writing concise yet thorough – prioritise clarity for engineers new to the codebase.
+
+INPUTS
+------
+FILE_TREE:
+${fileTree}
+
+README:
+${readme}
+
+Return ONLY valid GitHub-flavoured Markdown – **no extra commentary, no code fences around the whole document**.`;
 }
 
 export async function POST(req: NextRequest) {
@@ -136,7 +177,7 @@ export async function POST(req: NextRequest) {
     ]);
 
     const fileTreeString = tree.join("\n");
-    const prompt = `FILE_TREE:\n${fileTreeString}\n\nREADME:\n${readme}`;
+    const prompt = buildDetailedWikiPrompt(owner, repo, fileTreeString, readme);
 
     const analysis = await openAIGenerate(prompt);
 

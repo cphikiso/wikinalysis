@@ -1,8 +1,10 @@
+/* VERSION_2 page.tsx*/
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useChat } from "@ai-sdk/react";
 import type { FormEvent } from "react";
+import { marked } from "marked";
 
 export default function Page() {
   const [repoUrl, setRepoUrl] = useState<string>("");
@@ -58,6 +60,12 @@ export default function Page() {
     }
   };
 
+  const analysisHtml = useMemo(() => {
+    if (!analysis) return "";
+    // Enable automatic line breaks and GitHub-flavoured markdown
+    return marked.parse(analysis, { breaks: true });
+  }, [analysis]);
+
   return (
     <div className="max-w-xl mx-auto p-8 space-y-6">
       <h1 className="text-2xl font-bold mb-4">GitHub Repo Wiki Chat</h1>
@@ -81,11 +89,11 @@ export default function Page() {
       </div>
 
       {analysis && (
-        <div className="prose max-w-none bg-gray-50 p-4 rounded border">
-          <h2>Repository Analysis</h2>
+        <div className="prose max-w-none bg-gray-50 p-4 rounded border overflow-x-auto">
+          <h2>Repository Wiki</h2>
           <div
             dangerouslySetInnerHTML={{
-              __html: analysis.replace(/\n/g, "<br/>"),
+              __html: analysisHtml,
             }}
           />
         </div>
