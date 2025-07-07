@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import OpenAI from "openai";
 
 // Simple in-memory cache to avoid repeatedly hitting GitHub + OpenAI for the same repo during
 // a single server runtime instance. Feel free to replace with Redis or KV store for production.
@@ -79,46 +80,32 @@ async function fetchReadme(owner: string, repo: string, token?: string) {
   return Buffer.from(json.content, "base64").toString("utf-8");
 }
 
+const openaiClient = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
 async function openAIGenerate(markdownPrompt: string) {
-  const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-  if (!OPENAI_API_KEY) {
+  if (!openaiClient.apiKey) {
     throw new Error("OPENAI_API_KEY env var not set");
   }
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini", // alias for o4-mini
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a senior software architect. Provide clear, concise markdown explanations.",
-        },
-        {
-          role: "user",
-          content: markdownPrompt,
-        },
-      ],
-      temperature: 0.2,
-    }),
+  const completion = await openaiClient.chat.completions.create({
+    model: "o4-mini",
+    messages: [
+      {
+        role: "system",
+        content:
+          "You are a senior software architect. Provide clear, concise markdown explanations.",
+      },
+      {
+        role: "user",
+        content: markdownPrompt,
+      },
+    ],
+    temperature: 0.2,
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`OpenAI error: ${response.status} - ${errorText}`);
-  }
-
-  /* eslint-disable @typescript-eslint/no-unsafe-assignment */
-  const completionJson: { choices: Array<{ message: { content: string } }> } =
-    await response.json();
-  /* eslint-enable */
-
-  return completionJson.choices[0].message.content;
+  return completion.choices[0].message?.content ?? "";
 }
 
 export async function POST(req: NextRequest) {
