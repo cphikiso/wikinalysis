@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useChat } from "@ai-sdk/react";
 import type { FormEvent } from "react";
+import { motion } from "framer-motion";
 
 interface ChatProps {
   analysis: string;
@@ -22,25 +23,59 @@ export default function Chat({ analysis, fileTree }: ChatProps) {
   });
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 h-full">
       <h2 className="text-xl font-semibold">Chat with the Repository Wiki</h2>
-      <div className="border rounded p-4 h-80 overflow-y-auto">
-        {messages.map((m) => (
-          <div key={m.id} className="mb-2">
-            <strong>{m.role}: </strong>
-            {"parts" in m && m.parts ? (
-              m.parts.map((part, idx) => {
-                if (part.type === "text") {
-                  const textPart = part as { type: "text"; text: string };
-                  return <span key={idx}>{textPart.text}</span>;
-                }
-                return null;
-              })
-            ) : (
-              <span>{(m as { content?: string }).content ?? ""}</span>
-            )}
-          </div>
-        ))}
+      <div className="border rounded-xl p-4 h-[70vh] overflow-y-auto bg-white flex flex-col gap-2">
+        {messages.map((m) => {
+          // Consolidate message text for display
+          /* eslint-disable @typescript-eslint/no-explicit-any */
+          const content = (() => {
+            if ("parts" in m && Array.isArray((m as any).parts)) {
+              return (m as any).parts
+                .filter((p: any) => p?.type === "text")
+                .map((p: any) => p.text)
+                .join("");
+            }
+            return (m as { content?: string }).content ?? "";
+          })();
+          /* eslint-enable @typescript-eslint/no-explicit-any */
+
+          const isUser = m.role === "user";
+
+          return (
+            <motion.div
+              key={m.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+              className={`flex ${isUser ? "justify-end" : "justify-start"}`}
+            >
+              <div
+                className={`max-w-[85%] px-3 py-2 rounded-lg text-sm whitespace-pre-wrap break-words ${
+                  isUser
+                    ? "bg-mainPurple text-white"
+                    : "bg-whiteDarkPurple text-foreground"
+                }`}
+              >
+                {content}
+              </div>
+            </motion.div>
+          );
+        })}
+        {/* Loading placeholder */}
+        {status !== "ready" && (
+          <motion.div
+            key="loading-placeholder"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="flex justify-start"
+          >
+            <div className="max-w-[85%] px-3 py-2 rounded-lg text-sm bg-whiteDarkPurple text-black animate-pulse">
+              ...
+            </div>
+          </motion.div>
+        )}
       </div>
       <form
         onSubmit={(e: FormEvent<HTMLFormElement>) => {
@@ -53,15 +88,19 @@ export default function Chat({ analysis, fileTree }: ChatProps) {
           value={input}
           onChange={handleInputChange}
           disabled={status !== "ready"}
-          className="flex-1 border rounded p-2"
+          className="flex-1 border border-whiteDarkPurple/40 rounded p-2 focus:outline-none focus:ring-2 focus:ring-mainPurple"
           placeholder="Ask something..."
         />
         <button
           type="submit"
-          disabled={status !== "ready" || !input}
-          className="px-4 py-2 bg-green-600 text-white rounded disabled:opacity-50"
+          disabled={!input}
+          className="px-4 py-2 min-w-[72px] bg-mainPurple text-white rounded hover:bg-darkPurple transition disabled:opacity-50 flex items-center justify-center gap-1"
         >
-          Send
+          {status === "submitted" || status === "streaming" ? (
+            <span className="animate-spin rounded-full border-2 border-white border-t-transparent h-4 w-4" />
+          ) : (
+            "Send"
+          )}
         </button>
       </form>
     </div>
